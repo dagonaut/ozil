@@ -15,16 +15,6 @@ angular.module('ozilApp', [])
 
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
-    function nowDate() {
-      var d = new Date();
-      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-    }
-
-    function nowTime() {
-      var d = new Date();
-      return pad(d.getHours()) + ':' + pad(d.getMinutes());
-    }
-
     function cutoffDate() {
       var d = new Date();
       d.setDate(d.getDate() - 3);
@@ -38,7 +28,20 @@ angular.module('ozilApp', [])
     }
 
     function resetForm() {
-      vm.newEntry = { date: nowDate(), time: nowTime(), activity: null, note: '' };
+      // type="date" and type="time" inputs require Date objects in AngularJS 1.x, not strings
+      var now = new Date();
+      vm.newEntry = { dateObj: now, timeObj: now, activity: null, note: '' };
+    }
+
+    function formatEntry() {
+      var d = vm.newEntry.dateObj || new Date();
+      var t = vm.newEntry.timeObj || new Date();
+      return {
+        date: d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()),
+        time: pad(t.getHours()) + ':' + pad(t.getMinutes()),
+        activity: vm.newEntry.activity,
+        note: vm.newEntry.note || ''
+      };
     }
 
     vm.label = function (code) { return LABELS[code] || code; };
@@ -76,7 +79,7 @@ angular.module('ozilApp', [])
       if (!vm.canSubmit() || vm.submitting) return;
       vm.submitting = true;
       vm.error = null;
-      $http.post(API_BASE + '/entries', vm.newEntry)
+      $http.post(API_BASE + '/entries', formatEntry())
         .then(function (res) {
           vm.entries.unshift(res.data);
           updateDisplay();
