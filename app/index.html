@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="ozilApp">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Ozil</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body ng-controller="TrackerController as vm">
+
+  <div class="container">
+    <h1>Ozil</h1>
+
+    <!-- Error Banner -->
+    <div class="error-banner" ng-show="vm.error">{{vm.error}}</div>
+
+    <!-- Entry Form -->
+    <div class="form-card">
+      <div class="datetime-row">
+        <input type="date" ng-model="vm.newEntry.date" class="input-date">
+        <input type="time" ng-model="vm.newEntry.time" class="input-time">
+      </div>
+
+      <div class="activity-row">
+        <button class="btn-activity btn-pee"  ng-class="{'selected': vm.isSelected('T')}"     ng-click="vm.setActivity('T')">T</button>
+        <button class="btn-activity btn-poop" ng-class="{'selected': vm.isSelected('2')}"     ng-click="vm.setActivity('2')">2</button>
+        <button class="btn-activity btn-eat"  ng-class="{'selected': vm.isSelected('D')}"     ng-click="vm.setActivity('D')">D</button>
+        <button class="btn-activity btn-other" ng-class="{'selected': vm.isSelected('Other')}" ng-click="vm.setActivity('Other')">Other</button>
+      </div>
+
+      <div class="note-row" ng-show="vm.newEntry.activity === 'Other'">
+        <input type="text" ng-model="vm.newEntry.note" placeholder="What happened?" class="input-note" maxlength="200">
+      </div>
+
+      <button class="btn-submit"
+              ng-click="vm.submit()"
+              ng-disabled="!vm.canSubmit() || vm.submitting">
+        {{vm.submitting ? 'Saving...' : 'Log It'}}
+      </button>
+    </div>
+
+    <!-- Entry List -->
+    <div class="entry-list" ng-show="!vm.loading">
+      <div class="no-entries" ng-show="vm.displayEntries.length === 0">
+        No entries in the last 3 days.
+      </div>
+
+      <div class="entry-row {{vm.rowClass(entry)}}"
+           ng-repeat="entry in vm.displayEntries track by entry.id">
+        <div class="entry-info">
+          <span class="entry-date">{{entry.date}}</span>
+          <span class="entry-time">{{entry.time}}</span>
+          <span class="entry-activity">{{vm.label(entry.activity)}}</span>
+          <span class="entry-note" ng-show="entry.note">— {{entry.note}}</span>
+        </div>
+        <button class="btn-delete"
+                ng-click="vm.deleteEntry(entry)"
+                ng-disabled="entry.deleting"
+                title="Delete">✕</button>
+      </div>
+    </div>
+
+    <div class="loading" ng-show="vm.loading">Loading…</div>
+  </div>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.3/angular.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

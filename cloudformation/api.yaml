@@ -1,0 +1,220 @@
+# Last Modified: 2026-04-22
+# Status: Active
+# Deploy AFTER hosting.yaml (requires CertificateArn export)
+#
+# Commands:
+#   aws cloudformation deploy \
+#     --template-file cloudformation/api.yaml \
+#     --stack-name ozil-api \
+#     --parameter-overrides HostedZoneId=<YOUR_ZONE_ID> \
+#     --capabilities CAPABILITY_NAMED_IAM \
+#     --region us-east-1
+#
+# To update Lambda code without redeploying the full stack:
+#   zip -j lambda.zip lambda/index.js
+#   aws lambda update-function-code --function-name ozil-tracker \
+#     --zip-file fileb://lambda.zip --region us-east-1
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Ozil Dog Tracker - API (Lambda + HTTP API Gateway + Data S3 Bucket)
+
+Parameters:
+  HostedZoneId:
+    Type: String
+    Description: Route 53 Hosted Zone ID for ozil.cc
+
+Resources:
+
+  DataBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: ozil-tracking
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ozil-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3DataAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: !Sub '${DataBucket.Arn}/data.json'
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: ozil-tracker
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role: !GetAtt LambdaRole.Arn
+      Timeout: 10
+      Environment:
+        Variables:
+          DATA_BUCKET: !Ref DataBucket
+      # Source of truth: lambda/index.js — keep in sync with this ZipFile block
+      Code:
+        ZipFile: |
+          const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
+          const { randomUUID } = require('crypto');
+          const s3 = new S3Client({});
+          const BUCKET = process.env.DATA_BUCKET;
+          const KEY = 'data.json';
+          const JSON_CT = { 'Content-Type': 'application/json' };
+
+          async function getData() {
+            try {
+              const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: KEY }));
+              return JSON.parse(await r.Body.transformToString());
+            } catch (e) {
+              if (e.name === 'NoSuchKey') return [];
+              throw e;
+            }
+          }
+
+          async function putData(data) {
+            await s3.send(new PutObjectCommand({
+              Bucket: BUCKET, Key: KEY,
+              Body: JSON.stringify(data),
+              ContentType: 'application/json'
+            }));
+          }
+
+          exports.handler = async (event) => {
+            const { method, path } = event.requestContext.http;
+            try {
+              if (method === 'GET' && path === '/entries') {
+                return { statusCode: 200, headers: JSON_CT, body: JSON.stringify(await getData()) };
+              }
+              if (method === 'POST' && path === '/entries') {
+                const b = JSON.parse(event.body);
+                const entry = { id: randomUUID(), date: b.date, time: b.time, activity: b.activity, note: b.note || '' };
+                const data = await getData();
+                data.unshift(entry);
+                await putData(data);
+                return { statusCode: 201, headers: JSON_CT, body: JSON.stringify(entry) };
+              }
+              if (method === 'DELETE') {
+                const id = path.split('/').pop();
+                const data = (await getData()).filter(e => e.id !== id);
+                await putData(data);
+                return { statusCode: 200, headers: JSON_CT, body: JSON.stringify({ deleted: id }) };
+              }
+              return { statusCode: 404, headers: JSON_CT, body: '{"error":"Not found"}' };
+            } catch (e) {
+              console.error(e);
+              return { statusCode: 500, headers: JSON_CT, body: '{"error":"Internal server error"}' };
+            }
+          };
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: ozil-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - https://ozil.cc
+        AllowMethods:
+          - GET
+          - POST
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+        MaxAge: 300
+
+  LambdaIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations'
+      PayloadFormatVersion: '2.0'
+
+  GetEntriesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'GET /entries'
+      Target: !Sub 'integrations/${LambdaIntegration}'
+
+  PostEntriesRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'POST /entries'
+      Target: !Sub 'integrations/${LambdaIntegration}'
+
+  DeleteEntryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: 'DELETE /entries/{id}'
+      Target: !Sub 'integrations/${LambdaIntegration}'
+
+  DefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: '$default'
+      AutoDeploy: true
+
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*'
+
+  ApiDomainName:
+    Type: AWS::ApiGatewayV2::DomainName
+    Properties:
+      DomainName: api.ozil.cc
+      DomainNameConfigurations:
+        - CertificateArn: !ImportValue ozil-CertificateArn
+          EndpointType: REGIONAL
+
+  ApiMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    DependsOn: DefaultStage
+    Properties:
+      DomainName: !Ref ApiDomainName
+      ApiId: !Ref HttpApi
+      Stage: '$default'
+
+  ApiDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: api.ozil.cc
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ApiDomainName.RegionalDomainName
+        HostedZoneId: !GetAtt ApiDomainName.RegionalHostedZoneId
+
+Outputs:
+  ApiUrl:
+    Value: https://api.ozil.cc
+    Description: API base URL used by the frontend
