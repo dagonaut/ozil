@@ -45,6 +45,30 @@ h1 {
 }
 
 .datetime-row {
+  margin-bottom: 14px;
+}
+
+.btn-custom-time {
+  width: 100%;
+  padding: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: #f0f0f0;
+  color: #444;
+  border: 2px solid #aaa;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-custom-time.active {
+  background: #1565C0;
+  color: #fff;
+  border-color: #1565C0;
+}
+
+.datetime-inputs {
   display: flex;
   gap: 8px;
   margin-bottom: 14px;
@@ -130,6 +154,17 @@ h1 {
   overflow: hidden;
 }
 
+.day-header {
+  background: #222;
+  color: #fff;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 3px solid #111;
+}
+
 .entry-row {
   display: flex;
   align-items: center;
@@ -154,12 +189,6 @@ h1 {
   align-items: baseline;
   gap: 6px;
   min-width: 0;
-}
-
-.entry-date {
-  font-weight: 600;
-  font-size: 0.9rem;
-  white-space: nowrap;
 }
 
 .entry-time {

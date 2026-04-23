@@ -19,18 +19,25 @@
     <!-- Entry Form -->
     <div class="form-card">
       <div class="datetime-row">
+        <button class="btn-custom-time"
+                ng-class="{'active': vm.newEntry.customTime}"
+                ng-click="vm.toggleCustomTime()">
+          {{vm.newEntry.customTime ? '⏱ Custom Time' : '⏱ Now'}}
+        </button>
+      </div>
+      <div class="datetime-inputs" ng-show="vm.newEntry.customTime">
         <input type="date" ng-model="vm.newEntry.dateObj" class="input-date">
         <input type="time" ng-model="vm.newEntry.timeObj" class="input-time">
       </div>
 
       <div class="activity-row">
-        <button class="btn-activity btn-pee"  ng-class="{'selected': vm.isSelected('T')}"     ng-click="vm.setActivity('T')">T</button>
-        <button class="btn-activity btn-poop" ng-class="{'selected': vm.isSelected('2')}"     ng-click="vm.setActivity('2')">2</button>
-        <button class="btn-activity btn-eat"  ng-class="{'selected': vm.isSelected('D')}"     ng-click="vm.setActivity('D')">D</button>
-        <button class="btn-activity btn-other" ng-class="{'selected': vm.isSelected('Other')}" ng-click="vm.setActivity('Other')">Other</button>
+        <button class="btn-activity btn-pee"   ng-class="{'selected': vm.isSelected('T')}"     ng-click="vm.toggleActivity('T')">T</button>
+        <button class="btn-activity btn-poop"  ng-class="{'selected': vm.isSelected('2')}"     ng-click="vm.toggleActivity('2')">2</button>
+        <button class="btn-activity btn-eat"   ng-class="{'selected': vm.isSelected('D')}"     ng-click="vm.toggleActivity('D')">D</button>
+        <button class="btn-activity btn-other" ng-class="{'selected': vm.isSelected('Other')}" ng-click="vm.toggleActivity('Other')">Other</button>
       </div>
 
-      <div class="note-row" ng-show="vm.newEntry.activity === 'Other'">
+      <div class="note-row" ng-show="vm.isSelected('Other')">
         <input type="text" ng-model="vm.newEntry.note" placeholder="What happened?" class="input-note" maxlength="200">
       </div>
 
@@ -43,22 +50,25 @@
 
     <!-- Entry List -->
     <div class="entry-list" ng-show="!vm.loading">
-      <div class="no-entries" ng-show="vm.displayEntries.length === 0">
+      <div class="no-entries" ng-show="vm.displayGroups.length === 0">
         No entries in the last 3 days.
       </div>
 
-      <div class="entry-row {{vm.rowClass(entry)}}"
-           ng-repeat="entry in vm.displayEntries track by entry.id">
-        <div class="entry-info">
-          <span class="entry-date">{{entry.date}}</span>
-          <span class="entry-time">{{entry.time}}</span>
-          <span class="entry-activity">{{vm.label(entry.activity)}}</span>
-          <span class="entry-note" ng-show="entry.note">— {{entry.note}}</span>
+      <div ng-repeat="group in vm.displayGroups track by group.date">
+        <div class="day-header">{{vm.formatDate(group.date)}}</div>
+
+        <div class="entry-row {{vm.rowClass(entry)}}"
+             ng-repeat="entry in group.entries track by entry.id">
+          <div class="entry-info">
+            <span class="entry-time">{{entry.time}}</span>
+            <span class="entry-activity">{{vm.label(entry.activity)}}</span>
+            <span class="entry-note" ng-show="entry.note">— {{entry.note}}</span>
+          </div>
+          <button class="btn-delete"
+                  ng-click="vm.deleteEntry(entry)"
+                  ng-disabled="entry.deleting"
+                  title="Delete">✕</button>
         </div>
-        <button class="btn-delete"
-                ng-click="vm.deleteEntry(entry)"
-                ng-disabled="entry.deleting"
-                title="Delete">✕</button>
       </div>
     </div>
 

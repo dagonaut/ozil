@@ -1,13 +1,16 @@
 angular.module('ozilApp', [])
   .constant('API_BASE', 'https://api.ozil.cc')
-  .controller('TrackerController', ['$http', 'API_BASE', function ($http, API_BASE) {
+  .controller('TrackerController', ['$http', '$q', 'API_BASE', function ($http, $q, API_BASE) {
     var vm = this;
 
     var LABELS = { T: 'Pee', '2': 'Poop', D: 'Eat', Other: 'Other' };
     var ROW_CLASSES = { T: 'row-pee', '2': 'row-poop', D: 'row-eat', Other: 'row-other' };
+    var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                  'July', 'August', 'September', 'October', 'November', 'December'];
 
     vm.entries = [];
-    vm.displayEntries = [];
+    vm.displayGroups = [];
     vm.loading = false;
     vm.submitting = false;
     vm.error = null;
@@ -15,48 +18,79 @@ angular.module('ozilApp', [])
 
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
+    function dateStr(d) {
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+
     function cutoffDate() {
       var d = new Date();
       d.setDate(d.getDate() - 3);
-      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+      return dateStr(d);
+    }
+
+    function groupByDate(entries) {
+      var groups = [];
+      var map = {};
+      entries.forEach(function (e) {
+        if (!map[e.date]) {
+          map[e.date] = { date: e.date, entries: [] };
+          groups.push(map[e.date]);
+        }
+        map[e.date].entries.push(e);
+      });
+      return groups;
     }
 
     function updateDisplay() {
       var cutoff = cutoffDate();
-      // String comparison works correctly for YYYY-MM-DD format
-      vm.displayEntries = vm.entries.filter(function (e) { return e.date >= cutoff; });
+      var filtered = vm.entries.filter(function (e) { return e.date >= cutoff; });
+      vm.displayGroups = groupByDate(filtered);
     }
 
     function resetForm() {
-      // type="date" and type="time" inputs require Date objects in AngularJS 1.x, not strings
-      var now = new Date();
-      vm.newEntry = { dateObj: now, timeObj: now, activity: null, note: '' };
+      vm.newEntry = { customTime: false, dateObj: null, timeObj: null, activities: [], note: '' };
     }
 
-    function formatEntry() {
-      var d = vm.newEntry.dateObj || new Date();
-      var t = vm.newEntry.timeObj || new Date();
-      return {
-        date: d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()),
-        time: pad(t.getHours()) + ':' + pad(t.getMinutes()),
-        activity: vm.newEntry.activity,
-        note: vm.newEntry.note || ''
-      };
-    }
+    vm.toggleCustomTime = function () {
+      vm.newEntry.customTime = !vm.newEntry.customTime;
+      if (vm.newEntry.customTime) {
+        // Pre-fill with current time when the user opens the picker
+        var now = new Date();
+        vm.newEntry.dateObj = now;
+        vm.newEntry.timeObj = now;
+      }
+    };
 
     vm.label = function (code) { return LABELS[code] || code; };
     vm.rowClass = function (entry) { return ROW_CLASSES[entry.activity] || ''; };
-    vm.isSelected = function (code) { return vm.newEntry.activity === code; };
+    vm.isSelected = function (code) { return vm.newEntry.activities.indexOf(code) > -1; };
 
-    vm.setActivity = function (code) {
-      vm.newEntry.activity = code;
-      if (code !== 'Other') vm.newEntry.note = '';
+    vm.formatDate = function (ds) {
+      var today = new Date();
+      if (ds === dateStr(today)) return 'Today';
+      var yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (ds === dateStr(yesterday)) return 'Yesterday';
+      // Parse without timezone shift by constructing from parts
+      var p = ds.split('-');
+      var d = new Date(+p[0], +p[1] - 1, +p[2]);
+      return DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+    };
+
+    vm.toggleActivity = function (code) {
+      var idx = vm.newEntry.activities.indexOf(code);
+      if (idx > -1) {
+        vm.newEntry.activities.splice(idx, 1);
+        if (code === 'Other') vm.newEntry.note = '';
+      } else {
+        vm.newEntry.activities.push(code);
+      }
       vm.error = null;
     };
 
     vm.canSubmit = function () {
-      if (!vm.newEntry.activity) return false;
-      if (vm.newEntry.activity === 'Other' && !vm.newEntry.note.trim()) return false;
+      if (vm.newEntry.activities.length === 0) return false;
+      if (vm.isSelected('Other') && !vm.newEntry.note.trim()) return false;
       return true;
     };
 
@@ -65,7 +99,6 @@ angular.module('ozilApp', [])
       vm.error = null;
       $http.get(API_BASE + '/entries')
         .then(function (res) {
-          // Sort newest-first by date+time string comparison
           vm.entries = res.data.sort(function (a, b) {
             return (b.date + b.time).localeCompare(a.date + a.time);
           });
@@ -79,13 +112,32 @@ angular.module('ozilApp', [])
       if (!vm.canSubmit() || vm.submitting) return;
       vm.submitting = true;
       vm.error = null;
-      $http.post(API_BASE + '/entries', formatEntry())
-        .then(function (res) {
-          vm.entries.unshift(res.data);
+
+      // Use current time at moment of submit unless the user set a custom time
+      var now = new Date();
+      var d = (vm.newEntry.customTime && vm.newEntry.dateObj) ? vm.newEntry.dateObj : now;
+      var t = (vm.newEntry.customTime && vm.newEntry.timeObj) ? vm.newEntry.timeObj : now;
+      var date = dateStr(d);
+      var time = pad(t.getHours()) + ':' + pad(t.getMinutes());
+      var note = vm.newEntry.note || '';
+
+      var promises = vm.newEntry.activities.map(function (activity) {
+        return $http.post(API_BASE + '/entries', {
+          date: date, time: time, activity: activity,
+          note: activity === 'Other' ? note : ''
+        });
+      });
+
+      $q.all(promises)
+        .then(function (responses) {
+          responses.forEach(function (res) { vm.entries.unshift(res.data); });
+          vm.entries.sort(function (a, b) {
+            return (b.date + b.time).localeCompare(a.date + a.time);
+          });
           updateDisplay();
           resetForm();
         })
-        .catch(function () { vm.error = 'Failed to add entry. Try again.'; })
+        .catch(function () { vm.error = 'Failed to add entries. Try again.'; })
         .finally(function () { vm.submitting = false; });
     };
 
