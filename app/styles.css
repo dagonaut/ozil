@@ -91,6 +91,29 @@ h1 {
   margin-bottom: 14px;
 }
 
+.activity-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.activity-group .btn-activity {
+  width: 100%;
+  flex: none;
+}
+
+.time-since {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1;
+}
+
+.time-recent { color: #c62828; }
+.time-old    { color: #2E7D32; }
+
 .btn-activity {
   flex: 1;
   padding: 14px 4px;

@@ -18,6 +18,33 @@ angular.module('ozilApp', [])
 
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
+    function parseEntryDate(entry) {
+      var p = entry.date.split('-'), tp = entry.time.split(':');
+      return new Date(+p[0], +p[1] - 1, +p[2], +tp[0], +tp[1]);
+    }
+
+    vm.timeSince = function (code) {
+      for (var i = 0; i < vm.entries.length; i++) {
+        if (vm.entries[i].activity === code) {
+          var mins = Math.floor((new Date() - parseEntryDate(vm.entries[i])) / 60000);
+          if (mins < 60) return mins + 'm ago';
+          var h = Math.floor(mins / 60), m = mins % 60;
+          return m > 0 ? h + 'h ' + m + 'm ago' : h + 'h ago';
+        }
+      }
+      return null;
+    };
+
+    vm.timeSinceClass = function (code) {
+      for (var i = 0; i < vm.entries.length; i++) {
+        if (vm.entries[i].activity === code) {
+          var mins = Math.floor((new Date() - parseEntryDate(vm.entries[i])) / 60000);
+          return mins < 120 ? 'time-recent' : 'time-old';
+        }
+      }
+      return '';
+    };
+
     function dateStr(d) {
       return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     }

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-- **Hosting:** Static site on AWS S3 (public static website)
+- **Hosting:** Static site on AWS S3 behind CloudFront (private bucket, OAC)
 - **Frontend:** AngularJS 1.x (HTML/CSS/JS, no build step)
 - **Backend:** Node.js Lambda + API Gateway — reads/writes a single `data.json` file in S3
 - **Data:** Flat JSON array stored in S3; no database
@@ -25,11 +25,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## UI Behavior
 
-- **Form at top:** pre-filled with current date and time; four buttons (T, 2, D, Other); "Other" reveals a free-text input
-- **Entry list below:** newest-first, each row shows date, time, activity (and note if Other)
-- **Row styling:** full-width background color per activity type, thick dark border between rows
-- **Delete:** red X button on each row; deletes that entry immediately
-- **No authentication:** open access, shared between phones, persistent via the shared S3-backed API
+- **Time:** defaults to "Now" — timestamp is captured at the moment of submission, not page load. An optional "Custom Time" toggle reveals date/time pickers pre-filled with the current time.
+- **Multi-select:** activity buttons (T, 2, D, Other) toggle on/off; multiple can be selected at once. Submitting creates one entry per selected activity with the same timestamp.
+- **"Other":** when selected, reveals a free-text note field.
+- **Entry list:** grouped by day with a date header (Today / Yesterday / day name). Within each day, entries are sorted newest-first. Individual date is not shown on each row.
+- **Row styling:** full-width background color per activity type, thick dark border between rows.
+- **Delete:** red X button on each row; deletes that entry immediately.
+- **No authentication:** open access, shared between phones, persistent via the shared S3-backed API.
 
 ## Entry Schema
 
@@ -101,7 +103,6 @@ zip -j lambda.zip lambda/index.js
 aws lambda update-function-code --function-name ozil-tracker \
   --zip-file fileb://lambda.zip --region us-east-1
 ```
-Remember to also update the `ZipFile` block in `cloudformation/api.yaml` to keep them in sync.
 
 ## CI/CD
 

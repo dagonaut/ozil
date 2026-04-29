@@ -31,10 +31,21 @@
       </div>
 
       <div class="activity-row">
-        <button class="btn-activity btn-pee"   ng-class="{'selected': vm.isSelected('T')}"     ng-click="vm.toggleActivity('T')">T</button>
-        <button class="btn-activity btn-poop"  ng-class="{'selected': vm.isSelected('2')}"     ng-click="vm.toggleActivity('2')">2</button>
-        <button class="btn-activity btn-eat"   ng-class="{'selected': vm.isSelected('D')}"     ng-click="vm.toggleActivity('D')">D</button>
-        <button class="btn-activity btn-other" ng-class="{'selected': vm.isSelected('Other')}" ng-click="vm.toggleActivity('Other')">Other</button>
+        <div class="activity-group">
+          <button class="btn-activity btn-pee"   ng-class="{'selected': vm.isSelected('T')}"     ng-click="vm.toggleActivity('T')">T</button>
+          <div class="time-since" ng-class="vm.timeSinceClass('T')" ng-show="vm.timeSince('T')">{{vm.timeSince('T')}}</div>
+        </div>
+        <div class="activity-group">
+          <button class="btn-activity btn-poop"  ng-class="{'selected': vm.isSelected('2')}"     ng-click="vm.toggleActivity('2')">2</button>
+          <div class="time-since" ng-class="vm.timeSinceClass('2')" ng-show="vm.timeSince('2')">{{vm.timeSince('2')}}</div>
+        </div>
+        <div class="activity-group">
+          <button class="btn-activity btn-eat"   ng-class="{'selected': vm.isSelected('D')}"     ng-click="vm.toggleActivity('D')">D</button>
+          <div class="time-since" ng-class="vm.timeSinceClass('D')" ng-show="vm.timeSince('D')">{{vm.timeSince('D')}}</div>
+        </div>
+        <div class="activity-group">
+          <button class="btn-activity btn-other" ng-class="{'selected': vm.isSelected('Other')}" ng-click="vm.toggleActivity('Other')">Other</button>
+        </div>
       </div>
 
       <div class="note-row" ng-show="vm.isSelected('Other')">
